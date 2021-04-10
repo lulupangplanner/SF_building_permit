@@ -1,0 +1,442 @@
+---
+title: "Final Project"
+output: html_document
+---
+
+```{r}
+#Research Questions:
+  #How different variables affect the building permit approval time?
+  #How can we predict the approval time by a given permit type? 
+```
+  
+
+```{r setup, include=FALSE, echo=FALSE}
+#set working directory
+require("knitr")
+opts_knit$set(root.dir = "~/Downloads/R_datafiles")
+```
+
+```{r}
+# Load data
+library(readxl)
+data<-read.csv("Building_Permits_on_or_after_January_1__2013.csv")
+```
+
+
+```{r}
+
+# look at a few rows of loaded data
+head(data)
+dim(data)
+summary(data)
+```
+
+
+#what does data look like where column name="Permit"?
+#length(unique(data$Proposed.Units))
+#table(data$ Zipcode)
+
+```{r}
+# the original dataset is overwhelmed
+# select fields relevant to research topic
+# then create a new dataset, named as "delay"
+delay<-subset(data,select = c(Permit.Type,
+                              Current.Status,
+                              Filed.Date,
+                              Issued.Date,
+                              Completed.Date,
+                              First.Construction.Document.Date,
+                              Structural.Notification,
+                              Number.of.Existing.Stories,
+                              Number.of.Proposed.Stories,
+                              Voluntary.Soft.Story.Retrofit,
+                              Fire.Only.Permit,
+                              Permit.Expiration.Date,
+                              Estimated.Cost,
+                              Revised.Cost,
+                              Existing.Use,
+                              Existing.Units,
+                              Proposed.Use,
+                              Proposed.Units,
+                              TIDF.Compliance,
+                              Existing.Construction.Type,
+                              Proposed.Construction.Type,
+                              Supervisor.District,
+                              Neighborhoods...Analysis.Boundaries,
+                              Zipcode,
+                              Location,
+                              Record.ID))
+str(delay)
+```
+
+
+
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+Sys.setenv(TZ='America/Los_Angeles')
+
+delay$wtime<-as.numeric(
+  mdy(delay$Issued.Date)-
+    mdy(delay$Filed.Date))
+
+delay$ctime<-as.numeric(
+  mdy(delay$Completed.Date)-
+    mdy(delay$First.Construction.Document.Date))
+
+delay$diff_stories<-delay$Number.of.Proposed.Stories-
+  delay$Number.of.Existing.Stories
+
+delay$diff_cost<-delay$Revised.Cost-
+  delay$Estimated.Cost
+
+delay$diff_units<-delay$Proposed.Units-
+  delay$Existing.Units
+
+```
+
+```{r}
+##get the number of missing data points per column
+missing_data_count<-colSums(is.na(delay))
+missing_data_count
+# what percentage of the values in our dataset were missing
+mean(is.na(delay))*100
+# the result shows that 5.82% of the values in our dataset were missing
+dim(delay)
+```
+
+
+```{r}
+delay<-subset(delay,select = -c(
+                              Completed.Date,
+                              First.Construction.Document.Date,
+                              ctime
+                              ))
+dim(delay)
+```
+
+```{r}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+p <- ggplot(delay, aes(x=as.Date(mdy(Issued.Date)), y=wtime))+geom_line() 
+p
+```
+
+```{r}
+
+
+```
+
+colnames(delay)
+library(pastecs)
+stat.desc(delay)
+library(ggplot2)
+library(GGally)
+library(reshape2)
+library(lattice)
+library(caret)
+
+
+```{r}
+library(ggplot2)
+#library(ggExtra)
+
+p<-ggplot(delay,aes(x=wtime, y=Permit.Type,group=Permit.Type))+
+  geom_boxplot()
+p
+#p1<-ggMarginal(p,type="histogram")
+#p1
+
+```
+str(delay)
+```{r}
+library(ggplot2)
+
+
+ggplot(delay,aes(x=wtime, y=Structural.Notification ,group=Structural.Notification))+
+  geom_boxplot()
+
+```
+```{r}
+library(ggplot2)
+
+
+ggplot(delay,aes(x=wtime, y=Current.Status  ,group=Current.Status))+
+  geom_boxplot()
+
+```
+```{r}
+library(ggplot2)
+
+ggplot(delay, aes(x=wtime, y=Supervisor.District) )+
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)
+
+```
+```{r}
+library(ggplot2)
+
+ggplot(delay, aes(x=wtime, y=Supervisor.District,group=Supervisor.District) )+
+    geom_boxplot()
+```
+
+
+```{r}
+#number of applications per permit type
+library(ggplot2)
+ggplot(delay,aes(Permit.Type))+
+  geom_bar(fill="blue")+
+  ggtitle("Number of Applications by Permit Type")
+```
+```{r}
+#splitting Issued.Date into day, month, year
+library(dplyr)
+library(lubridate)
+issuedata<-delay %>%
+  mutate(
+    Issued.Date=mdy(Issued.Date),
+    year=as.factor(year(Issued.Date)),
+    month=as.factor(month(Issued.Date)),
+    day=day(Issued.Date)
+  ) 
+
+##number of issued cases by year/month/day
+ggplot(issuedata,aes(year))+
+  geom_bar(fill="blue")+
+  ggtitle("Issed Cases by Year")
+
+ggplot(issuedata,aes(month))+
+  geom_bar(fill="blue")+
+  ggtitle("Issed Cases by Month")
+
+ggplot(issuedata,aes(day))+
+  geom_bar(fill="blue")+
+  ggtitle("Issed Cases by Day")
+
+
+```
+
+```{r}
+##number of applications per year by month
+ggplot(issuedata,aes(year, fill=month))+
+  geom_bar()+
+  ggtitle("Applications per Year by Month")
+```
+
+```{r}
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+#str(delay)
+
+test<-data.frame(delay)
+
+test1 <- test %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate_if(is.integer, as.numeric) %>%
+  gather(key = key, value = value, factor_key = TRUE)
+
+#gg <- melt(test1)
+g<-test1 %>%
+   ggplot(aes(x=value, group=key)) +
+   geom_histogram(bins = 10)+
+   theme(axis.text=element_text(size=6))+
+   facet_wrap(~ key, ncol = 5,scale ="free")
+
+g
+
+```
+```{r}
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+
+test<-data.frame(delay)
+
+test02 <- test %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate_if(is.integer, as.numeric) %>%
+  mutate_if(is.Date,as.Date) %>%
+  gather(key = key, value = value, factor_key = TRUE)
+
+
+g02<-test02 %>%
+   ggplot(aes(x=value, group=key)) +
+   geom_boxplot(outlier.shape = NA)+
+   theme(axis.text=element_text(size=6))+
+   facet_wrap(~ key, ncol = 5,scale ="free")
+
+g02
+```
+
+
+```{r}
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+#str(delay)
+
+test<-data.frame(delay)
+
+test2 <- test %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate_if(is.factor, as.numeric) %>%
+  mutate_if(is.integer, as.numeric) %>%
+  mutate_if(is.Date,as.Date) %>%
+  gather(key = key, value = value, factor_key = TRUE)
+
+#gg <- melt(test1)
+g2<-test2 %>%
+   ggplot(aes(x=value, group=key)) +
+   geom_boxplot()+
+   theme(axis.text=element_text(size=6))+
+   facet_wrap(~ key, ncol = 5,scale ="free")
+
+g2
+```
+str(delay)
+
+```{r}
+#corrplot
+
+delay2<-select(delay,
+                   Permit.Type,
+                   Current.Status,
+                   Structural.Notification,
+                   Number.of.Existing.Stories,
+                   Number.of.Proposed.Stories,
+                   Voluntary.Soft.Story.Retrofit,
+                   Fire.Only.Permit,
+                   Estimated.Cost,
+                   Revised.Cost,
+                   Existing.Use,
+                   Existing.Units,
+                   Proposed.Use,
+                   Proposed.Units,
+                   TIDF.Compliance,
+                   Existing.Construction.Type,
+                   Proposed.Construction.Type,
+                   Supervisor.District,
+                   Neighborhoods...Analysis.Boundaries,
+                   Zipcode,
+                   Location,
+                   wtime,
+                   diff_stories,
+                   diff_cost,
+                   diff_units
+                 )
+
+delay2$Permit.Type=as.numeric(delay2$Permit.Type)
+delay2$Current.Status=as.numeric(as.factor(delay2$Current.Status))
+delay2$Structural.Notification=as.numeric(as.factor(delay2$Structural.Notification))
+delay2$Voluntary.Soft.Story.Retrofit=as.numeric(as.factor(delay2$Voluntary.Soft.Story.Retrofit))
+delay2$Fire.Only.Permit=as.numeric(as.factor(delay2$Fire.Only.Permit))
+delay2$Existing.Use=as.numeric(as.factor(delay2$Existing.Use))
+delay2$Proposed.Use=as.numeric(as.factor(delay2$Proposed.Use))
+delay2$Proposed.Construction.Type=as.numeric(as.factor(delay2$Proposed.Construction.Type))
+delay2$Neighborhoods...Analysis.Boundaries=as.numeric(as.factor(delay2$Neighborhoods...Analysis.Boundaries))
+delay2$Proposed.Units=as.numeric(delay2$Proposed.Units)
+delay2$Existing.Construction.Type=as.numeric(delay2$Existing.Construction.Type)
+delay2$TIDF.Compliance=as.numeric(as.factor(delay2$TIDF.Compliance))
+delay2$Supervisor.District=as.numeric(delay2$Supervisor.District)
+delay2$Location=as.numeric(as.factor(delay2$Location))
+delay2$Zipcode=as.numeric(delay2$Zipcode)
+
+
+#lapply(cor_data,class)
+
+#corrplot(cor(cor_data,use="pairwise.complete.obs"))
+
+library(corrplot)
+corrplot(cor(delay2,use="complete.obs"),tl.cex=0.5)
+
+```
+```{r}
+#We will split the dataset into training and testing datasets. 80% training and 20% testing
+delay3<-na.omit(delay2)
+set.seed(123)
+spl = sample(2, nrow(delay3), replace = TRUE, prob = c(0.8, 0.2))
+train = delay3[spl == 1, ]
+test = delay3[spl == 2, ]
+
+model1 <- lm(wtime~., data = train)
+summary(model1)
+```
+
+
+```{r}
+#model2
+#delay2<-na.omit(delay2)
+
+model2 <- lm(wtime~Permit.Type+
+                   Current.Status+
+                   Structural.Notification+
+                   Number.of.Existing.Stories+
+                   Number.of.Proposed.Stories+
+                   Fire.Only.Permit+
+                   Estimated.Cost+
+                   Revised.Cost+
+                   Existing.Use+
+                   Existing.Units+
+                   Proposed.Units+
+                   Supervisor.District+
+                   Neighborhoods...Analysis.Boundaries+
+                   Zipcode+
+                   Location,
+             
+               data = train)
+summary(model2)
+
+```
+
+```{r}
+model3 <- lm(wtime~Permit.Type+
+                   Current.Status+
+                   Structural.Notification+
+                   Number.of.Existing.Stories+
+                   Number.of.Proposed.Stories+
+                   Fire.Only.Permit+
+                   Estimated.Cost+
+                   Revised.Cost+
+                   Existing.Use+
+                   Existing.Units+
+                   Proposed.Units+
+                   Supervisor.District+
+                   Neighborhoods...Analysis.Boundaries+
+                   Location,
+             
+               data = train)
+summary(model3)
+```
+
+
+```{r}
+
+#prediction
+model1_pred <- predict(model1, newdata = test) 
+model2_pred <- predict(model2, newdata = test) 
+model3_pred <- predict(model3, newdata = test) 
+
+rmse_model1 <- sqrt(mean((test$wtime - model1_pred)^2))
+cat(sep="\n","the RMSE value of the first model is",rmse_model1)
+
+rmse_model2 <- sqrt(mean((test$wtime - model2_pred)^2))
+cat(sep="\n","the RMSE value of the second model is",rmse_model2)
+
+
+rmse_model3 <- sqrt(mean((test$wtime - model3_pred)^2))
+cat(sep="\n","the RMSE value of the third model is",rmse_model3)
+```
+
